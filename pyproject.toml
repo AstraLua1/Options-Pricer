@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "options-pricer"
+version = "0.1.0"
+description = "Options Pricer: Black-Scholes, implied vol and crypto vol surfaces from public Deribit data"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "matplotlib",
+    "requests",
+    "pyarrow",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "jupyter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
