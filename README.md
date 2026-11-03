@@ -26,7 +26,6 @@ src/options_pricer/
 │   └── implied.py         # implied vol solver: Newton first, Brent as a backup
 └── data/                  # (Milestone 3)
 tests/                     # pytest tests
-practice/                  # interview practice: Black-Scholes, Greeks and Newton from memory
 notebooks/                 # demos only
 ```
 
