@@ -49,7 +49,7 @@ def black76_price(F, K, T, sigma, df, option_type="call"):
     # Note: this does NOT fix units. sigma=20 stays 20.0, not 0.20.
     F, K, T, sigma, df = (np.asarray(x, dtype=float) for x in (F, K, T, sigma, df))
 
-    # Get d1 and d2 from the helper above
+    # Get d1 and d2 from the functionbs above
     d1, d2 = _d1_d2(F, K, T, sigma)
 
     if option_type == "call":
