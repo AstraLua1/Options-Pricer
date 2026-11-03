@@ -4,6 +4,7 @@ Main idea: two completely different methods must agree.
   - analytic:  the Greek formulas in greeks.py
   - numerical: bump the input, re-price, measure the change (numerical.py)
 If a formula had a typo, the two would disagree and the test would fail.
+Tests are written by Claude**
 """
 
 import numpy as np
