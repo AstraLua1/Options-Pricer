@@ -2,6 +2,7 @@
 
 Run them all from the PyCharm terminal with:   pytest
 pytest finds every file named test_*.py and runs every function named test_*.
+Tests are written by Claude**
 """
 
 import numpy as np

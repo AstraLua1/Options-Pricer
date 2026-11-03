@@ -2,6 +2,7 @@
 
 A production pricer must NEVER return nan. One nan in a portfolio makes the
 whole book's total nan (nan + anything = nan), and the risk report breaks.
+Tests are written by Claude**
 """
 
 import warnings                  # Python's warnings system (used to catch RuntimeWarnings)
