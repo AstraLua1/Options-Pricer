@@ -10,8 +10,8 @@ A learning project in Python, built step by step to understand how banks and tra
 |---|---|---|
 | 1 | Black-Scholes pricer + Greeks (delta, gamma, vega, theta, rho), with tests | ✅ Done |
 | 2 | Implied volatility solver (Newton's method, Brent's method as a fallback) | ✅ Done |
-| 3 | Pull BTC and ETH option data from Deribit's public API, clean it, compute implied vols | ⏳ Next |
-| 4 | Plot the vol smile, fit SVI, build a vol surface, check for arbitrage | |
+| 3 | Pull BTC and ETH option data from Deribit's public API, clean it, compute implied vols | ✅ Done |
+| 4 | Plot the vol smile, fit SVI, build a vol surface, check for arbitrage | ⏳ Next |
 | 5 | Daily snapshot collector that saves the surface to disk | |
 
 ## Project structure
@@ -24,8 +24,14 @@ src/options_pricer/
 │   └── numerical.py       # "bump-and-reprice" Greeks, used to check the formulas
 ├── volatility/
 │   └── implied.py         # implied vol solver: Newton first, Brent as a backup
-└── data/                  # (Milestone 3)
+└── data/
+    ├── deribit.py         # downloads option data from Deribit's public API
+    ├── chain.py           # builds one table per currency, converts BTC prices to USD, adds implied vols
+    └── cleaning.py        # drops untrustworthy quotes and records why
+scripts/
+└── compare_iv.py          # live run: download, clean, compare our vols with Deribit's
 tests/                     # pytest tests
+└── fixtures/              # a saved real Deribit snapshot, so tests don't need the internet
 notebooks/                 # demos only
 ```
 
@@ -59,6 +65,14 @@ Inputs can be single numbers or arrays, so a whole option chain can be priced in
 
 Units: volatility and rates as decimals (20% = 0.20), time in years (30 days = 30/365).
 
+## Live Deribit data
+
+```
+python scripts/compare_iv.py
+```
+
+Downloads every live BTC and ETH option, prints a cleaning report and compares our implied vols with Deribit's, expiry by expiry. The full table is saved as a CSV in `data/` (not uploaded to GitHub).
+
 ## Tests
 
 ```
@@ -71,6 +85,7 @@ The tests check:
 - put-call parity
 - the Greek formulas against "bump-and-reprice" Greeks (two independent methods must agree)
 - edge cases: expiry, zero volatility and impossible inputs
+- the Deribit pipeline, using a saved real snapshot: BTC-to-USD conversion, cleaning rules, and our vols matching Deribit's
 - implied vol "round trip": price an option at a known vol, solve back, get the same vol (160 scenarios, from deep in the money to deep out of the money, 1 week to 5 years, 5% to 200% vol)
 
 ## What I learned
@@ -107,6 +122,26 @@ The tests check:
 - Traders quote and compare options in vol rather than dollars.
 - Plotting it across strikes and expiries gives the vol smile and vol surface (Milestone 4).
 - Banks use market implied vols to check traders' valuations (independent price verification).
+
+### Milestone 3: Real market data from Deribit
+
+**Pulling data from an API.**
+- An API is a website for programs: you send a request to a web address with some parameters and get raw data (JSON) back.
+- In Python that's `requests.get(url, params=...)`, then `.json()`, then take the `"result"` part.
+- Two requests were needed: the "menu" (`get_instruments`: strike, expiry, call/put) and the "prices" (`get_book_summary_by_currency`: bid, ask, mark price, Deribit's implied vol, forward). They're joined into one table, one row per option.
+- Real-world extras: a timeout so the program never hangs, and retries if the connection fails.
+
+**Deribit prices are in BTC, not USD.**
+- A price of 0.0354 means 0.0354 BTC. To get dollars, multiply by the BTC futures price for that expiry: 0.0354 × $77,834 ≈ $2,759.
+
+**Cleaning real data.**
+- Real quotes are messy: some options have no bid, some spreads are very wide, some nobody holds.
+- These are dropped before using the data, and every dropped row gets a reason, so there's an audit trail.
+
+**Validating my implied vol solver on real prices.**
+- Deribit gives every input (strike, expiry, forward, option price) and also its own implied vol.
+- I fed the inputs into my own solver and compared. Example: the 25 Dec 2026 $82,000 call priced at $2,759 gives 37.88%, the same as Deribit's.
+- For longer expiries the match was within about 0.002 vol points. Very short expiries and in-the-money options matched less closely, so out-of-the-money options are the most reliable for building a vol surface.
 
 ## Disclaimer
 
