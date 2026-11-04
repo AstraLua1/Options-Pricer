@@ -11,8 +11,8 @@ A learning project in Python, built step by step to understand how banks and tra
 | 1 | Black-Scholes pricer + Greeks (delta, gamma, vega, theta, rho), with tests | ✅ Done |
 | 2 | Implied volatility solver (Newton's method, Brent's method as a fallback) | ✅ Done |
 | 3 | Pull BTC and ETH option data from Deribit's public API, clean it, compute implied vols | ✅ Done |
-| 4 | Plot the vol smile, fit SVI, build a vol surface, check for arbitrage | ⏳ Next |
-| 5 | Daily snapshot collector that saves the surface to disk | |
+| 4 | Plot the vol smile, fit SVI, build a vol surface, check for arbitrage | ✅ Done |
+| 5 | Daily snapshot collector that saves the surface to disk | ⏳ Next |
 
 ## Project structure
 
@@ -23,13 +23,21 @@ src/options_pricer/
 │   ├── greeks.py          # analytic Greeks + conversion to desk units
 │   └── numerical.py       # "bump-and-reprice" Greeks, used to check the formulas
 ├── volatility/
-│   └── implied.py         # implied vol solver: Newton first, Brent as a backup
+│   ├── implied.py         # implied vol solver: Newton first, Brent as a backup
+│   ├── svi.py             # fits a smooth SVI curve through each expiry's smile
+│   ├── arbitrage.py       # butterfly and calendar checks (no "free money" in the curves)
+│   └── surface.py         # joins the curves into a surface: a vol for any strike and date
+├── plotting.py            # smile charts and the 3D surface picture
 └── data/
     ├── deribit.py         # downloads option data from Deribit's public API
     ├── chain.py           # builds one table per currency, converts BTC prices to USD, adds implied vols
     └── cleaning.py        # drops untrustworthy quotes and records why
 scripts/
-└── compare_iv.py          # live run: download, clean, compare our vols with Deribit's
+├── compare_iv.py          # live run: download, clean, compare our vols with Deribit's
+├── plot_smiles.py         # live run: plot the smile for every expiry
+├── fit_smiles.py          # live run: fit SVI and draw the curves on the smiles
+├── check_arbitrage.py     # live run: butterfly and calendar checks
+└── build_surface.py       # live run: build the surface, print a vol table, draw it in 3D
 tests/                     # pytest tests
 └── fixtures/              # a saved real Deribit snapshot, so tests don't need the internet
 notebooks/                 # demos only
@@ -59,6 +67,9 @@ greeks = to_desk_units(bs_greeks(S=100, K=100, T=1, r=0.05, sigma=0.2))
 from options_pricer.volatility.implied import bs_implied_vol
 bs_implied_vol(10.4506, S=100, K=100, T=1, r=0.05)                  # ≈ 0.20 (20% vol)
 bs_implied_vol(150, S=100, K=100, T=1, r=0.05)                      # nan: impossible price
+
+# The volatility surface (after building it from Deribit data, see scripts/build_surface.py)
+surface.vol(79000, "10 Jan 2027")                                  # e.g. 0.383 (38.3%)
 ```
 
 Inputs can be single numbers or arrays, so a whole option chain can be priced in one call.
@@ -73,6 +84,12 @@ python scripts/compare_iv.py
 
 Downloads every live BTC and ETH option, prints a cleaning report and compares our implied vols with Deribit's, expiry by expiry. The full table is saved as a CSV in `data/` (not uploaded to GitHub).
 
+```
+python scripts/build_surface.py
+```
+
+Builds the full BTC and ETH volatility surfaces: fits SVI to every expiry, checks for arbitrage, prints a table of vols by strike and days to expiry, and draws the surface in 3D.
+
 ## Tests
 
 ```
@@ -86,6 +103,7 @@ The tests check:
 - the Greek formulas against "bump-and-reprice" Greeks (two independent methods must agree)
 - edge cases: expiry, zero volatility and impossible inputs
 - the Deribit pipeline, using a saved real snapshot: BTC-to-USD conversion, cleaning rules, and our vols matching Deribit's
+- SVI fits, arbitrage checks (including a famous "bad" curve that must be caught) and the surface
 - implied vol "round trip": price an option at a known vol, solve back, get the same vol (160 scenarios, from deep in the money to deep out of the money, 1 week to 5 years, 5% to 200% vol)
 
 ## What I learned
@@ -142,6 +160,29 @@ The tests check:
 - Deribit gives every input (strike, expiry, forward, option price) and also its own implied vol.
 - I fed the inputs into my own solver and compared. Example: the 25 Dec 2026 $82,000 call priced at $2,759 gives 37.88%, the same as Deribit's.
 - For longer expiries the match was within about 0.002 vol points. Very short expiries and in-the-money options matched less closely, so out-of-the-money options are the most reliable for building a vol surface.
+
+### Milestone 4: The volatility smile and surface
+
+**Vol isn't one number.**
+- In Black-Scholes, vol is a single number. In the real market every strike has a different implied vol. Plotted, it makes a "smile".
+- For BTC (Nov 2026) the left side is higher: people pay more for crash protection than for upside bets. (I guessed the opposite. In crypto it can flip during strong rallies.)
+- Short expiries have much more curved smiles than long ones. (I guessed the opposite here too.) Over a week, a big move is a sudden "jump", and the market charges a lot extra for it.
+
+**SVI: a best-fit curve through the smile.**
+- The market only gives vols at certain strikes (dots). To get a vol at any strike, you need a smooth curve. Like weather stations (dots) and a temperature map (the curve).
+- SVI ("Stochastic Volatility Inspired", Jim Gatheral) is a smile-shaped curve with 5 knobs: height, steepness, tilt, where the bottom is, and how rounded it is. The computer turns the knobs until the curve fits the dots.
+- On real Deribit data, every expiry fitted to within 0.05 to 0.4 vol points.
+
+**Checking for arbitrage ("free money").**
+- Butterfly check (across strikes): for three neighbouring strikes, the middle option can't cost more than the average of the two either side. Example: $15 / $10 / $6 is fine, but $15 / $10 / $4 is impossible, because selling 2 middle options and buying 1 of each neighbour pays you $1 upfront for a bet that can never lose.
+- That's the same as saying probabilities can't be negative: a butterfly only pays if the price ends near the middle strike, so its price is roughly payout × probability. A negative price would mean a negative probability.
+- Calendar check (across dates): a longer expiry can't be cheaper than a shorter one, because more time means more uncertainty.
+- All BTC and ETH expiries passed both checks.
+
+**The surface.**
+- All the SVI curves lined up by date, like slices of a loaf of bread. For a date between two Deribit expiries, the surface blends the two curves, leaning towards the closer date.
+- Example: the 79,000 strike was 38.1% on 25 Dec and 38.4% on 29 Jan; 10 Jan (not listed) comes out at 38.3%, in between.
+- Days to expiry matter more than the calendar date, because an option's value depends on how much time is left.
 
 ## Disclaimer
 
