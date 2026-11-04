@@ -4,6 +4,16 @@ Options Pricer: Black-Scholes, implied vol and crypto vol surfaces from public D
 
 A learning project in Python, built step by step to understand how banks and trading firms price options and measure their risk. Uses public data only.
 
+## Results
+
+**BTC volatility smiles with SVI fits** (live Deribit data, 4 Nov 2026). Each panel is one expiry: blue dots are the market's implied vols, the orange line is the fitted SVI curve. Short expiries are much more curved, and the left side (crash protection) is higher.
+
+![BTC volatility smiles with SVI fits](docs/images/btc_smiles_svi.png)
+
+**BTC volatility surface.** All the SVI curves joined into one surface, giving a vol for any strike and any expiry date.
+
+![BTC volatility surface](docs/images/btc_vol_surface.png)
+
 ## Roadmap
 
 | Milestone | What | Status |
@@ -43,6 +53,7 @@ scripts/
 tests/                     # pytest tests
 └── fixtures/              # a saved real Deribit snapshot, so tests don't need the internet
 notebooks/                 # demos only
+docs/images/               # charts shown in this README
 ```
 
 ## Install
