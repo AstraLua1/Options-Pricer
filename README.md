@@ -12,7 +12,7 @@ A learning project in Python, built step by step to understand how banks and tra
 | 2 | Implied volatility solver (Newton's method, Brent's method as a fallback) | ✅ Done |
 | 3 | Pull BTC and ETH option data from Deribit's public API, clean it, compute implied vols | ✅ Done |
 | 4 | Plot the vol smile, fit SVI, build a vol surface, check for arbitrage | ✅ Done |
-| 5 | Daily snapshot collector that saves the surface to disk | ⏳ Next |
+| 5 | Snapshot collector that saves the surface to disk (run on demand) | ✅ Done |
 
 ## Project structure
 
@@ -31,13 +31,15 @@ src/options_pricer/
 └── data/
     ├── deribit.py         # downloads option data from Deribit's public API
     ├── chain.py           # builds one table per currency, converts BTC prices to USD, adds implied vols
-    └── cleaning.py        # drops untrustworthy quotes and records why
+    ├── cleaning.py        # drops untrustworthy quotes and records why
+    └── storage.py         # saves each day's surface to data/history/ and loads the history back
 scripts/
 ├── compare_iv.py          # live run: download, clean, compare our vols with Deribit's
 ├── plot_smiles.py         # live run: plot the smile for every expiry
 ├── fit_smiles.py          # live run: fit SVI and draw the curves on the smiles
 ├── check_arbitrage.py     # live run: butterfly and calendar checks
-└── build_surface.py       # live run: build the surface, print a vol table, draw it in 3D
+├── build_surface.py       # live run: build the surface, print a vol table, draw it in 3D
+└── collect_snapshot.py    # live run: save today's BTC and ETH surfaces to data/history/
 tests/                     # pytest tests
 └── fixtures/              # a saved real Deribit snapshot, so tests don't need the internet
 notebooks/                 # demos only
@@ -90,6 +92,12 @@ python scripts/build_surface.py
 
 Builds the full BTC and ETH volatility surfaces: fits SVI to every expiry, checks for arbitrage, prints a table of vols by strike and days to expiry, and draws the surface in 3D.
 
+```
+python scripts/collect_snapshot.py
+```
+
+Saves a snapshot of today's BTC and ETH surfaces to `data/history/` (one per day; running it again the same day replaces it). Run it whenever you want to add a day to the history.
+
 ## Tests
 
 ```
@@ -103,6 +111,7 @@ The tests check:
 - the Greek formulas against "bump-and-reprice" Greeks (two independent methods must agree)
 - edge cases: expiry, zero volatility and impossible inputs
 - the Deribit pipeline, using a saved real snapshot: BTC-to-USD conversion, cleaning rules, and our vols matching Deribit's
+- saving and loading snapshots (in a temporary folder, so real data is never touched)
 - SVI fits, arbitrage checks (including a famous "bad" curve that must be caught) and the surface
 - implied vol "round trip": price an option at a known vol, solve back, get the same vol (160 scenarios, from deep in the money to deep out of the money, 1 week to 5 years, 5% to 200% vol)
 
@@ -183,6 +192,24 @@ The tests check:
 - All the SVI curves lined up by date, like slices of a loaf of bread. For a date between two Deribit expiries, the surface blends the two curves, leaning towards the closer date.
 - Example: the 79,000 strike was 38.1% on 25 Dec and 38.4% on 29 Jan; 10 Jan (not listed) comes out at 38.3%, in between.
 - Days to expiry matter more than the calendar date, because an option's value depends on how much time is left.
+
+### Milestone 5: Saving snapshots
+
+**Why keep history.**
+- A surface built today is a one-off photo of the market. Risk teams need many days of photos to answer questions like "how much do vols usually move in a day?" or "what could we lose on a bad day?" (Value at Risk).
+- The next project, a risk engine, will use this history.
+
+**What gets saved.**
+- For each currency and day, two CSV files in `data/history/`: the SVI fits (small, and enough to rebuild that day's whole surface) and the clean option chain (the raw evidence, so a fit can always be re-checked).
+- One snapshot per day: running it twice on the same day replaces that day's files.
+- The data stays on my computer (the `data/` folder is ignored by Git).
+
+**First run (4 Nov 2026).**
+- BTC: 898 options downloaded, 333 kept after cleaning, 11 expiries fitted, no arbitrage.
+- ETH: 738 options downloaded, 279 kept, 11 expiries fitted, no arbitrage.
+- The forward price rises with expiry (BTC: about 78,500 for 2 days out up to about 82,400 for September 2027).
+
+**Design choice.** I run it on demand rather than every day automatically. If the risk engine needs a longer history, public sources such as Deribit's historical volatility index (DVOL) can fill the gap.
 
 ## Disclaimer
 
