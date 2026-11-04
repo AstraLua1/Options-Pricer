@@ -86,3 +86,38 @@ def plot_smiles(chain, title="Volatility smiles", columns=4, fits=None):
     fig.suptitle(title, fontsize=14, x=0.01, ha="left", fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     return fig
+
+
+def plot_surface(surface, moneyness=(0.7, 1.4), days=(7, None), title="Volatility surface"):
+    """3D picture of the whole surface: vol (height) by moneyness and days to expiry.
+
+    surface:   a VolSurface (from build_surface())
+    moneyness: range of strike ÷ forward to show (0.7 = 30% below, 1.4 = 40% above)
+    days:      range of days to expiry to show; None = up to the last listed expiry
+    """
+    first_day = days[0]
+    last_day = days[1] if days[1] is not None else surface.T_list[-1] * 365
+
+    # A grid of points: 40 moneyness values × 40 expiry dates
+    m_values = np.linspace(moneyness[0], moneyness[1], 40)
+    d_values = np.linspace(first_day, last_day, 40)
+    M, D = np.meshgrid(m_values, d_values)            # every combination of the two
+
+    # Ask the surface for the vol at every point of the grid
+    vols = np.zeros_like(M)
+    for i, day in enumerate(d_values):
+        T = day / 365
+        strikes = m_values * surface.forward(T)       # moneyness -> actual strike at that date
+        vols[i, :] = surface.vol_at_T(strikes, T) * 100
+
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(projection="3d")              # a 3D chart
+    ax.plot_surface(M, D, vols, cmap="Blues", edgecolor="none", alpha=0.95)
+
+    ax.set_xlabel("Moneyness (strike ÷ forward)")
+    ax.set_ylabel("Days to expiry")
+    ax.set_zlabel("Implied vol (%)")
+    ax.set_title(title, loc="left", fontweight="bold")
+    ax.view_init(elev=25, azim=-60)                    # camera angle
+    fig.tight_layout()
+    return fig
