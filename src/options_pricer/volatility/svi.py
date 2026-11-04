@@ -113,7 +113,10 @@ def fit_svi_by_expiry(chain, vol_column="iv_mid"):
         rows.append({"expiry": expiry, "T": T, "forward": forward,
                      "a": params.a, "b": params.b, "rho": params.rho,
                      "m": params.m, "sigma": params.sigma,
-                     "rmse_pts": rmse, "points": len(group)})
+                     "rmse_pts": rmse, "points": len(group),
+                     # the range of strikes (as k) the curve was fitted on:
+                     # outside this range the curve is a guess (extrapolation)
+                     "k_min": k.min(), "k_max": k.max()})
     return pd.DataFrame(rows)
 
 
